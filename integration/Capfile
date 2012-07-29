@@ -1,0 +1,81 @@
+load 'deploy'
+# Uncomment if you are using Rails' asset pipeline
+    # load 'deploy/assets'
+Dir['vendor/gems/*/recipes/*.rb','vendor/plugins/*/recipes/*.rb'].each { |plugin| load(plugin) }
+load 'config/deploy' # remove this line to skip loading any of the default tasks
+
+namespace :deploy do
+	desc "Symlink shared configs and folders on each release. Remove whatever version is currently there."
+	task :symlink_shared do
+		shared_assets.each do |symlink_asset|
+			namespace :"#{symlink_asset}" do
+				run "rm -rf #{release_path}/hid/#{symlink_asset}"
+				run "ln -nfs #{shared_path}/#{application}/#{symlink_asset} #{release_path}/hid/#{symlink_asset}"
+			end
+		end
+	end
+	desc "Upgrades application."
+	task :upgrade_application do
+		run "drush -r #{release_path}/hid -l hidglobal.com updb -y"
+	end
+end
+
+namespace :mysql do
+	desc "Create a db dump"
+	task :create_capistrano_db_dump do
+		run "drush -r #{release_path}/hid cc all"
+		run "mkdir -p #{shared_path}/db_backup"
+		run "mysqldump --opt #{db_name} > #{shared_path}/db_backup/#{application}.sql"
+	end
+
+	task :rollback_db do
+		run "mysql -e \"DROP DATABASE #{db_name}\""
+		run "mysql -e \"CREATE DATABASE #{db_name}\""
+		run "mysql #{db_name} < #{shared_path}/db_backup/#{application}.sql"
+	end
+
+	task :create_synchronization_dump do
+		run "mysqldump --opt #{db_name} > ~/migration.dump.sql"
+		download("migration.dump.sql", "/tmp/migration.dump.sql")
+		run "rm -f migration.dump.sql"
+	end
+
+	task :use_synchronization_dump do
+		upload("/tmp/migration.dump.sql", "migration.dump.sql")
+		run "mysql -e \"DROP DATABASE #{db_name}\""
+		run "mysql -e \"CREATE DATABASE #{db_name}\""
+		run "mysql #{db_name} < migration.dump.sql"
+		run "rm -f migration.dump.sql"
+	end
+end
+
+namespace :synchronize do
+	desc 'Synchronize the files'
+	task :files do
+		remote_user = variables[:remote_user] || "#{user}"
+		remote_domain = variables[:remote_domain] || "#{domain}"
+		set :parent_sync_path, "#{shared_path}/#{application}/sites/#{application}"
+		set :full_sync_path, "#{shared_path}/#{application}/sites/#{application}/files"
+
+		run "echo #{remote_user}"
+		run "#{sudo} chown -R #{user}:#{user} #{full_sync_path}"
+		run "rsync -e ssh -avz --delete-after #{remote_user}@#{remote_domain}:#{full_sync_path} #{parent_sync_path}"
+		run "#{sudo} chown -R apache:apache #{full_sync_path}"
+	end
+end
+
+desc 'Backup the database.'
+before 'deploy:update', 'mysql:create_capistrano_db_dump'
+
+desc 'Share the sites base.'
+after 'deploy:create_symlink', 'deploy:symlink_shared'
+
+desc 'Update the schema if necessary.'
+after 'deploy:update', 'deploy:upgrade_application'
+
+desc 'Perform cleanup'
+after 'deploy:update', 'deploy:cleanup'
+
+desc 'Rollback to last backed up database.'
+after 'deploy:rollback', 'mysql:rollback_db'
+

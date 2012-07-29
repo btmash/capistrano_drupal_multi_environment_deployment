@@ -1,0 +1,16 @@
+set :rails_env, "staging"
+
+set :application, "application.name"
+set :deploy_to, "/path/to/#{application}"
+set :domain, "staging.domain"
+set :user, "username"
+set :shared_assets, %w[.htaccess sites/sites.php sites/domain.com]
+
+set :repository, "http://path/go/git/repository.git"
+set :branch, "master"
+set :db_name, "application_db_name"
+
+role :app, domain
+role :web, domain
+role :db, domain, :primary => true
+
