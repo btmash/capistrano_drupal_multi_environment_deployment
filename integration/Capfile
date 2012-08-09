@@ -9,21 +9,21 @@ namespace :deploy do
 	task :symlink_shared do
 		shared_assets.each do |symlink_asset|
 			namespace :"#{symlink_asset}" do
-				run "rm -rf #{release_path}/hid/#{symlink_asset}"
-				run "ln -nfs #{shared_path}/#{application}/#{symlink_asset} #{release_path}/hid/#{symlink_asset}"
+				run "rm -rf #{release_path}/#{symlink_asset}"
+				run "ln -nfs #{shared_path}/#{application}/#{symlink_asset} #{release_path}/#{symlink_asset}"
 			end
 		end
 	end
 	desc "Upgrades application."
 	task :upgrade_application do
-		run "drush -r #{release_path}/hid -l hidglobal.com updb -y"
+		run "drush -r #{release_path} -l #{application} updb -y"
 	end
 end
 
 namespace :mysql do
 	desc "Create a db dump"
 	task :create_capistrano_db_dump do
-		run "drush -r #{release_path}/hid cc all"
+		run "drush -r #{release_path} cc all"
 		run "mkdir -p #{shared_path}/db_backup"
 		run "mysqldump --opt #{db_name} > #{shared_path}/db_backup/#{application}.sql"
 	end
