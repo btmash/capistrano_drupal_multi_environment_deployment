@@ -26,12 +26,6 @@ namespace :deploy do
 		run "drush @#{stage} updb -y"
 		run "drush @#{stage} cc all"
 	end
-
-	desc "Restart server tasks."
-	task :restart do
-		run "#{sudo} /etc/init.d/php5-fpm restart"
-		run "#{sudo} /etc/init.d/nginx restart"
-	end
 end
 
 namespace :drupal do
