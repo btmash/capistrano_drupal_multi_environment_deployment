@@ -10,6 +10,7 @@ set :repository, "http://path/go/git/repository.git"
 set :branch, "master"
 set :db_name, "application_db_name"
 
+role :master, domain
 role :app, domain
 role :web, domain
 role :db, domain, :primary => true
