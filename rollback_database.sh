@@ -1,7 +1,8 @@
 #!/bin/bash -x
-source ~/.bash_profile
+#source ~/.bash_profile
 
 HOST=$1
+CAPISTRANO_DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/integration"
 
 if [[ -z $HOST ]]
 then
@@ -9,5 +10,5 @@ then
   exit 1
 fi
 
-cd ~/scripts/integration; cap $HOST mysql:rollback_db
+cd $CAPISTRANO_DIRECTORY; cap $HOST mysql:rollback_db
 
