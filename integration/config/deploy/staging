@@ -5,6 +5,7 @@ set :deploy_to, "/path/to/#{application}"
 set :domain, "staging.domain"
 set :user, "username"
 set :shared_assets, %w[.htaccess sites/sites.php sites/domain.com]
+set :archive_dir, "sites/staging.domain/files/drush_archive"
 
 set :repository, "http://path/go/git/repository.git"
 set :branch, "master"

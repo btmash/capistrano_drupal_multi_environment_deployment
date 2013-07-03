@@ -26,6 +26,12 @@ namespace :deploy do
 		run "drush @#{stage} updb -y"
 		run "drush @#{stage} cc all"
 	end
+
+	desc "Restart server tasks."
+	task :restart do
+		run "#{sudo} /etc/init.d/php5-fpm restart"
+		run "#{sudo} /etc/init.d/nginx restart"
+	end
 end
 
 namespace :drupal do
@@ -46,6 +52,11 @@ namespace :drupal do
 		destination_environment = variables[:destination_environment] || "#{destination_environment}"
 		run "drush sql-sync @#{stage} @#{destination_environment} -y"
 	end
+	
+	task :touch_file, :roles => :master do
+		filepath = variables[:filepath] || "~/capistrano_default"
+		run "touch #{filepath}"
+	end
 
 	task :file_sync, :roles => :master do
 		destination_environment = variables[:destination_environment] || "#{destination_environment}"
@@ -63,20 +74,32 @@ namespace :drupal do
 		run "drush --yes dl drush_ecl"
 		run "drush @#{stage} ecl"
 	end
+
+	task :create_archive, :roles => :master do
+		require 'securerandom'
+		release_secure = SecureRandom.hex(20)
+		run "echo #{release_secure}"
+		run "mkdir -p #{shared_path}/#{application}/#{archive_dir}"
+		run "drush -y @#{stage} archive-dump @sites --destination=#{shared_path}/#{application}/#{archive_dir}/#{release_secure}.tar --tar-options=\"--exclude=.git --exclude=#{archive_dir}\""
+		run "drush -y @#{stage} sql-dump | gzip > #{shared_path}/#{application}/#{archive_dir}/#{release_secure}.sql.gz"
+		run "ls -rt #{shared_path}/#{application}/#{archive_dir}/*.tar | head -n -5 | xargs rm --force"
+		run "ls -rt #{shared_path}/#{application}/#{archive_dir}/*.sql.gz | head -n -5 | xargs rm --force"
+		print "Site archive file (code, files, db) can now be downloaded at http://#{domain}/#{archive_dir}/#{release_secure}.tar\n"
+		print "Site db archive file can now be downloaded at http://#{domain}/#{archive_dir}/#{release_secure}.sql.gz\n"
+	end
 end
 
 namespace :mysql do
 	desc "Create a db dump"
 	task :create_capistrano_db_dump, :roles => :master do
-		run "drush @#{stage} cc all"
+		# run "drush @#{stage} cc all"
 		run "mkdir -p #{shared_path}/db_backup"
 		run "drush @#{stage} sql-dump > #{shared_path}/db_backup/#{application}.sql"
 	end
 
 	task :rollback_db, :roles => :master do
-		run "mysql -e \"DROP DATABASE #{db_name}\""
-		run "mysql -e \"CREATE DATABASE #{db_name}\""
-		run "mysql #{db_name} < #{shared_path}/db_backup/#{application}.sql"
+		run "drush @#{stage} --yes sql-drop"
+		run "drush @#{stage} sqlc < #{shared_path}/db_backup/#{application}.sql"
 	end
 end
 
