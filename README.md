@@ -2,7 +2,7 @@ Capistrano Drupal Multi Environment Deployment
 ==============================================
 
 UPDATE: This version of the tool currently only works with Capistrano v2.x and
-lower. It will be updated in the coming weeks to working with the 3.x branch.
+lower. It will be updated in the coming months to working with the 3.x branch.
 
 The purpose of this project is to utilize capistrano with shell scripts for the
 management of your Drupal application from dev to test/staging to production. 
