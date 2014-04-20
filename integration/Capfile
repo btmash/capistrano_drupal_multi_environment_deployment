@@ -23,34 +23,46 @@ namespace :deploy do
 	desc "Upgrades application."
 	task :upgrade_application, :roles => :master do
 		# run "drush @#{stage} rr"
-		run "drush @#{stage} updb -y"
-		run "drush @#{stage} cc all"
+		run "drush @#{stage} --yes updb"
+		run "drush @#{stage} --yes cc all"
 	end
 
 	desc "Restart server tasks."
 	task :restart do
-		run "#{sudo} /etc/init.d/php5-fpm restart"
-		run "#{sudo} /etc/init.d/nginx restart"
+		#run "#{sudo} /etc/init.d/httpd restart"
+		#run "#{sudo} /etc/init.d/php5-fpm restart"
+		#run "#{sudo} /etc/init.d/nginx restart"
 	end
+
+	desc "Create shared assets directories"
+	task :create_shared_asset_directories do
+		shared_assets.each do |symlink_asset|
+			namespace :"#{symlink_asset}" do
+				run "mkdir -p #{shared_path}/#{application}/$(dirname #{symlink_asset})"
+			end
+		end
+	end
+
 end
 
 namespace :drupal do
 	desc "Clear cache"
 	task :clear_cache, :roles => :master do
-		# run "drush @#{stage} rr"
-		run "drush @#{stage} cc all"
+		# run "drush @#{stage} rr --yes"
+		run "drush @#{stage} --yes cc all"
 	end
 
 	desc "Run updates"
 	task :run_updates, :roles => :master do
 		# run "drush @#{stage} rr"
-		run "drush -y @#{stage} updb"
-		run "drush @#{stage} cc all"
+		run "drush @#{stage} --yes updb"
+		run "drush @#{stage} --yes cc all"
 	end
 
 	task :db_sync, :roles => :master do
+		source_environment = variables[:source_environment] || "#{stage}"
 		destination_environment = variables[:destination_environment] || "#{destination_environment}"
-		run "drush sql-sync @#{stage} @#{destination_environment} -y"
+		run "drush --yes sql-sync --create-db @#{source_environment} @#{destination_environment}"
 	end
 	
 	task :touch_file, :roles => :master do
@@ -59,20 +71,21 @@ namespace :drupal do
 	end
 
 	task :file_sync, :roles => :master do
+		source_environment = variables[:source_environment] || "#{stage}"
 		destination_environment = variables[:destination_environment] || "#{destination_environment}"
-		run "drush -y rsync @#{stage}:%files @#{destination_environment}:%files"
-		run "drush -y rsync @#{stage}:%private_files @#{destination_environment}:%private_files"
+		run "drush --yes rsync @#{source_environment}:%files @#{destination_environment}:%files"
+		# run "drush --yes rsync @#{source_environment}:%private_files @#{destination_environment}:%private_files"
 	end
 
 	task :cache_content, :roles => :master do
 		run "drush --yes dl drush_ecl"
-		run "drush @#{stage} ecl"
+		run "drush @#{stage} --yes ecl"
 	end
 
 	task :run_cron, :roles => :master do
-		run "drush @#{stage} core-cron"
+		run "drush @#{stage} --yes core-cron"
 		run "drush --yes dl drush_ecl"
-		run "drush @#{stage} ecl"
+		run "drush @#{stage} --yes ecl"
 	end
 
 	task :create_archive, :roles => :master do
@@ -80,8 +93,8 @@ namespace :drupal do
 		release_secure = SecureRandom.hex(20)
 		run "echo #{release_secure}"
 		run "mkdir -p #{shared_path}/#{application}/#{archive_dir}"
-		run "drush -y @#{stage} archive-dump @sites --destination=#{shared_path}/#{application}/#{archive_dir}/#{release_secure}.tar --tar-options=\"--exclude=.git --exclude=#{archive_dir}\""
-		run "drush -y @#{stage} sql-dump | gzip > #{shared_path}/#{application}/#{archive_dir}/#{release_secure}.sql.gz"
+		run "drush --yes @#{stage} --yes archive-dump @sites --destination=#{shared_path}/#{application}/#{archive_dir}/#{release_secure}.tar --tar-options=\"--exclude=.git --exclude=#{archive_dir}\""
+		run "drush --yes @#{stage} --yes sql-dump | gzip > #{shared_path}/#{application}/#{archive_dir}/#{release_secure}.sql.gz"
 		run "ls -rt #{shared_path}/#{application}/#{archive_dir}/*.tar | head -n -5 | xargs rm --force"
 		run "ls -rt #{shared_path}/#{application}/#{archive_dir}/*.sql.gz | head -n -5 | xargs rm --force"
 		print "Site archive file (code, files, db) can now be downloaded at http://#{domain}/#{archive_dir}/#{release_secure}.tar\n"
@@ -94,14 +107,20 @@ namespace :mysql do
 	task :create_capistrano_db_dump, :roles => :master do
 		# run "drush @#{stage} cc all"
 		run "mkdir -p #{shared_path}/db_backup"
-		run "drush @#{stage} sql-dump > #{shared_path}/db_backup/#{application}.sql"
+		upload("create_alias_dump.sh", "create_alias_dump.sh")
+		run "bash create_alias_dump.sh @#{stage} #{shared_path}/db_backup"
+		run "rm -f create_alias_dump.sh"
 	end
 
 	task :rollback_db, :roles => :master do
-		run "drush @#{stage} --yes sql-drop"
-		run "drush @#{stage} sqlc < #{shared_path}/db_backup/#{application}.sql"
+		upload("rollback_alias_dump.sh", "rollback_alias_dump.sh")
+		run "bash rollback_alias_dump.sh @#{stage} #{shared_path}/db_backup"
+		run "rm -f rollback_alias_dump.sh"
 	end
 end
+
+desc 'Create shared asset directories'
+after 'deploy:setup', 'deploy:create_shared_asset_directories'
 
 desc 'Backup the database.'
 before 'deploy:update', 'mysql:create_capistrano_db_dump'
@@ -117,4 +136,5 @@ after 'deploy:update', 'deploy:cleanup'
 
 desc 'Rollback to last backed up database.'
 after 'deploy:rollback', 'mysql:rollback_db'
+
 
