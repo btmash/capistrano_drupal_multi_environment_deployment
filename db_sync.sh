@@ -4,6 +4,7 @@
 # Synchronize the environments from HOST1 over to HOST2
 CAP_HOST1=$1
 CAP_HOST2=$2
+CAP_ENVIRONMENT=$3
 CAPISTRANO_DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/integration"
 
 if [[ -z $CAP_HOST1 ]]
@@ -18,4 +19,10 @@ then
 	exit 1
 fi
 
-cd $CAPISTRANO_DIRECTORY; cap $CAP_HOST1 drupal:db_sync -s destination_environment=$CAP_HOST2
+if [[ -z $CAP_ENVIRONMENT ]]
+then
+	echo "Missing CAPISTRANO Host Environment (Optional) - Setting to CAPISTRANO Deployment Environment 1"
+	CAP_ENVIRONMENT=$CAP_HOST1
+fi
+
+cd $CAPISTRANO_DIRECTORY; cap $CAP_ENVIRONMENT drupal:db_sync -s source_environment=$CAP_HOST1 -s destination_environment=$CAP_HOST2
